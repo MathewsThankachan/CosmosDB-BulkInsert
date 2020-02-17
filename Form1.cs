@@ -1,18 +1,13 @@
-﻿using Microsoft.Azure.Cosmos;
-using Newtonsoft.Json;
+﻿
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Container = Microsoft.Azure.Cosmos.Container;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Bson;
-using Microsoft.Azure.Documents.Client;
-using Cosmos.Samples.Shared;
-using System.Diagnostics;
-using System.Text;
+using Microsoft.Azure.Cosmos;
 
 namespace BulkInsert
 {
@@ -28,11 +23,6 @@ namespace BulkInsert
 
         }
 
-        private void Form1_Load_1(object sender, EventArgs e)
-        {
-
-        }
-
         private async void btnBulkInsert_Click(object sender, EventArgs e)
         {
             btnBulkInsert.Enabled = false;
@@ -41,6 +31,7 @@ namespace BulkInsert
             string DatabaseName = ConfigurationManager.AppSettings["DatabaseName"];
             string ContainerName = ConfigurationManager.AppSettings["ContainerName"];
 
+            //Define the conectivity option to cosmos client
             CosmosClientOptions options = new CosmosClientOptions()
             {
                 AllowBulkExecution = true,
@@ -50,13 +41,15 @@ namespace BulkInsert
                 RequestTimeout = new TimeSpan(0, 5, 0),
                 MaxTcpConnectionsPerEndpoint = 1000,
                 OpenTcpConnectionTimeout = new TimeSpan(0, 5, 0),
-                
-
             };
-            CosmosClient client = new CosmosClient(EndpointUrl, AuthorizationKey,options);
+          
+            #region CosmosDB Connection settings
+
+            CosmosClient client = new CosmosClient(EndpointUrl, AuthorizationKey, options);
             Database database = await client.CreateDatabaseIfNotExistsAsync(DatabaseName);
             Container container = await database.CreateContainerIfNotExistsAsync(ContainerName, "/Postcode");
 
+            #endregion
 
 
             string filePath = Path.GetDirectoryName(Application.ExecutablePath).Replace(@"bin\Debug", ConfigurationManager.AppSettings["FilePath"]);
@@ -73,6 +66,7 @@ namespace BulkInsert
             // 500k --> 15 min @ 20,000RU/s, && 11 mins  @ 100,000RU/s
             // 1 mn -->  min @ 100,000RU/s
 
+            //Create a new collection to test various range of data. This test code and needs to be removed
             List<PricePaidData> lstPricedata1 = lstPricedata.GetRange(0, 500000);
 
 
@@ -80,19 +74,19 @@ namespace BulkInsert
             int cnt = 0;
 
 
-            #region async
+            #region CosmosDb async method
 
             List<Task> tasks = new List<Task>();
             foreach (var item in lstPricedata1)
             {
-                cnt++;
+                cnt++; // only used for debugging to see current record index being processed
                 tasks.Add(container.CreateItemAsync<PricePaidData>(item, new PartitionKey(item.Postcode)));
             }
 
             await Task.WhenAll(tasks);
             #endregion
 
-            #region WithStreamWriter
+            #region CosmosDb StreamWriter --> better performance
             //foreach (var item in lstPricedata1)
             //{
 
@@ -167,7 +161,6 @@ namespace BulkInsert
             }
             return lstPricedata;
         }
-
     }
 }
 
